@@ -73,3 +73,18 @@ BEGIN
     END WHILE;
 END
 ```
+
+## 优化过程
+### 1、没有优化
+执行SQL语句
+```SQL
+SELECT a.*, SUM(b.total_amount) AS total FROM users a LEFT JOIN orders b on a.user_id = b.user_id GROUP BY a.user_id;
+```
+需要花费20秒的时间。
+EXPLAIN显示如下：
+| id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows    | filtered | Extra                                      |
+|----|-------------|-------|------------|------|---------------|------|---------|------|---------|----------|--------------------------------------------|
+|  1 | SIMPLE      | a     | NULL       | ALL  | PRIMARY       | NULL | NULL    | NULL |    9589 |   100.00 | Using temporary                            |
+|  1 | SIMPLE      | b     | NULL       | ALL  | NULL          | NULL | NULL    | NULL | 9728273 |   100.00 | Using where; Using join buffer (hash join) |
+
+
