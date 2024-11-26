@@ -80,11 +80,47 @@ END
 ```SQL
 SELECT a.*, SUM(b.total_amount) AS total FROM users a LEFT JOIN orders b on a.user_id = b.user_id GROUP BY a.user_id;
 ```
-需要花费20秒的时间。
+耗时20秒。
 EXPLAIN显示如下：
 | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows    | filtered | Extra                                      |
 |----|-------------|-------|------------|------|---------------|------|---------|------|---------|----------|--------------------------------------------|
 |  1 | SIMPLE      | a     | NULL       | ALL  | PRIMARY       | NULL | NULL    | NULL |    9589 |   100.00 | Using temporary                            |
 |  1 | SIMPLE      | b     | NULL       | ALL  | NULL          | NULL | NULL    | NULL | 9728273 |   100.00 | Using where; Using join buffer (hash join) |
 
+可以看到什么索引都没有使用，type都为ALL。
+
+### 2、第一次优化，普通索引
+CREATE INDEX idx_orders_user_id ON orders (user_id);
+
+执行SQL语句
+```SQL
+SELECT a.*, SUM(b.total_amount) AS total FROM users a LEFT JOIN orders b on a.user_id = b.user_id GROUP BY a.user_id;
+```
+耗时30秒，比不加索引的时间要长。
+EXPLAIN显示如下：
+
+| id | select_type | table | partitions | type  | possible_keys      | key                | key_len | ref                      | rows | filtered | Extra |
+|----|-------------|-------|------------|-------|--------------------|--------------------|---------|--------------------------|------|----------|-------|
+|  1 | SIMPLE      | a     | NULL       | index | PRIMARY            | PRIMARY            | 4       | NULL                     | 9589 |   100.00 | NULL  |
+|  1 | SIMPLE      | b     | NULL       | ref   | idx_orders_user_id | idx_orders_user_id | 5       | optimize_train.a.user_id | 1037 |   100.00 | NULL  |
+
+type为index或者ref，全部走的索引。推测是由于mysql的回表机制导致查询变得更慢了。所以接下来继续优化索引。
+
+### 3、第二次优化，覆盖索引
+覆盖索引是指一个索引包含了查询所需的所有列，从而可以满足查询的要求，而不需要访问实际的数据行。
+
+CREATE INDEX idx_orders_user_id_total_amount ON orders (user_id,total_amount);
+
+执行SQL语句
+```SQL
+SELECT a.*, SUM(b.total_amount) AS total FROM users a LEFT JOIN orders b on a.user_id = b.user_id GROUP BY a.user_id;
+```
+耗时1.5秒，有了显著提升
+
+EXPLAIN显示如下：
+
+| id | select_type | table | partitions | type  | possible_keys                                      | key                             | key_len | ref                      | rows | filtered | Extra       |
+|----|-------------|-------|------------|-------|----------------------------------------------------|---------------------------------|---------|--------------------------|------|----------|-------------|
+|  1 | SIMPLE      | a     | NULL       | index | PRIMARY                                            | PRIMARY                         | 4       | NULL                     | 9589 |   100.00 | NULL        |
+|  1 | SIMPLE      | b     | NULL       | ref   | idx_orders_user_id,idx_orders_user_id_total_amount | idx_orders_user_id_total_amount | 5       | optimize_train.a.user_id |  972 |   100.00 | Using index |
 
