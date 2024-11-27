@@ -28,7 +28,7 @@ ORDER BY o.order_date DESC;
 Extra里提示了"Using filesort"，初步推断是ORDER BY导致。
 
 ## 2、第一次优化
-给orders表的order_date列加上索引，仅需要0.003秒，优化成功。EXPLAIN如下：
+给orders表的order_date列加上索引，再次执行以上的SQL语句，这次仅需要0.003秒，优化成功。EXPLAIN如下：
 
 | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref                           | rows    | filtered | Extra                       |
 |----|-------------|-------|------------|--------|---------------|---------|---------|-------------------------------|---------|----------|-----------------------------|
